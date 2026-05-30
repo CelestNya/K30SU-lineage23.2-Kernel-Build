@@ -66,21 +66,47 @@ jobs:
             arch/arm64/configs/vendor/debugfs.config \
             arch/arm64/configs/vendor/xiaomi/sm8250-common.config \
             arch/arm64/configs/vendor/xiaomi/apollo.config
-          # Verify and fix critical options
-          echo "=== Critical config check ==="
-          grep -E "(CONFIG_COMPAT|CONFIG_ARM64_4K_PAGES|CONFIG_LTO_CLANG|CONFIG_CFI_CLANG)" out/.config || true
-          if ! grep -q "CONFIG_COMPAT=y" out/.config; then
-            echo ">>> CONFIG_COMPAT missing, forcing it"
-            echo 'CONFIG_COMPAT=y' >> out/.config
+
+          # === Fix critical MHI/Qualcomm options ===
+          # mhi_arch_qcom.c needs CONFIG_ARCH_QCOM=y (else mhi_qcom.h uses stubs)
+          # and CONFIG_IPC_LOGGING=y, CONFIG_PCI_MSM=y for its dependencies
+          for opt in \
+            CONFIG_ARCH_QCOM=y \
+            CONFIG_IPC_LOGGING=y \
+            CONFIG_PCI_MSM=y \
+            CONFIG_MHI_BUS=y \
+            CONFIG_MHI_QCOM=y \
+            CONFIG_COMPAT=y \
+            CONFIG_ARM64_4K_PAGES=y; do
+            name="${opt%=*}"
+            if ! grep -q "$opt" out/.config; then
+              echo ">>> $name missing, forcing it"
+              # Remove any existing setting (e.g. =n or is not set)
+              sed -i "/^$name=/d; /^# $name is not set/d" out/.config
+              echo "$opt" >> out/.config
+            fi
+          done
+
+          # Disable CC_WERROR — cleaner than KCFLAGS=-Wno-error
+          if grep -q "CONFIG_CC_WERROR=y" out/.config; then
+            echo ">>> Disabling CONFIG_CC_WERROR (we use KCFLAGS=-Wno-error)"
+            sed -i 's/CONFIG_CC_WERROR=y/# CONFIG_CC_WERROR is not set/' out/.config
           fi
-          if ! grep -q "CONFIG_ARM64_4K_PAGES=y" out/.config; then
-            echo ">>> ARM64_4K_PAGES missing, forcing it (dependency of CONFIG_COMPAT)"
-            echo 'CONFIG_ARM64_4K_PAGES=y' >> out/.config
-          fi
+
           # Resolve dependencies after our forced changes
           make ARCH=arm64 O=out olddefconfig
+
+          # === Diagnostic output: verify all critical options survived ===
           echo "=== Config after olddefconfig ==="
-          grep -E "(CONFIG_COMPAT|CONFIG_ARM64_4K_PAGES|CONFIG_LTO_CLANG|CONFIG_CFI_CLANG)" out/.config || true
+          for opt in \
+            CONFIG_ARCH_QCOM CONFIG_IPC_LOGGING CONFIG_PCI_MSM \
+            CONFIG_MHI_BUS CONFIG_MHI_QCOM \
+            CONFIG_COMPAT CONFIG_ARM64_4K_PAGES \
+            CONFIG_LTO_CLANG CONFIG_CFI_CLANG CONFIG_SHADOW_CALL_STACK \
+            CONFIG_CC_WERROR; do
+            grep -E "^$opt(=| is not set)" out/.config || echo "$opt: NOT FOUND"
+          done
+
           # Save the final config
           cp out/.config arch/arm64/configs/$DEFCONFIG_NAME
           rm -rf out
@@ -129,14 +155,24 @@ jobs:
             CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
             olddefconfig
 
-          # Final CONFIG_COMPAT verification before full build
-          grep -q "CONFIG_COMPAT=y" out/.config || \
-            { echo "FATAL: CONFIG_COMPAT still not set after olddefconfig!"; exit 1; }
+          # Final config verification before full build
+          echo "=== Pre-build config check ==="
+          for opt in \
+            CONFIG_ARCH_QCOM=y CONFIG_IPC_LOGGING=y CONFIG_PCI_MSM=y \
+            CONFIG_MHI_BUS=y CONFIG_MHI_QCOM=y \
+            CONFIG_COMPAT=y CONFIG_ARM64_4K_PAGES=y; do
+            name="${opt%=*}"
+            if ! grep -q "$opt" out/.config; then
+              echo "FATAL: $name is not set (value should be $opt)"
+              grep "^$name\|$name is not set" out/.config || echo "(not found at all)"
+              exit 1
+            fi
+          done
+          echo "All critical options verified OK."
 
           echo "=== Starting kernel build ==="
           make -j$(nproc) O=out ARCH=$ARCH CC=$CC \
-            CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
-            KCFLAGS=-Wno-error
+            CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE
 
       - name: Package AnyKernel3
         run: |
