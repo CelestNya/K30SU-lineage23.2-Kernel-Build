@@ -11,17 +11,35 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: LineageOS/android_kernel_xiaomi_sm8250
+          ref: lineage-23.2
+          path: kernel
+          fetch-depth: 1
+
+      - name: Generate merged defconfig
+        run: |
+          cd kernel
+          make ARCH=arm64 O=out vendor/kona-perf_defconfig
+          scripts/kconfig/merge_config.sh -O out out/.config \
+            arch/arm64/configs/vendor/debugfs.config \
+            arch/arm64/configs/vendor/xiaomi/sm8250-common.config \
+            arch/arm64/configs/vendor/xiaomi/apollo.config
+          cp out/.config arch/arm64/configs/apollo_stock_defconfig
+          rm -rf out
+
       - name: Build kernel
         uses: dabao1955/kernel_build_action@main
         with:
-          kernel-url: https://github.com/LineageOS/android_kernel_xiaomi_sm8250
-          kernel-branch: lineage-23.2
-          config: vendor/kona-perf_defconfig
+          kernel-url: ./kernel/
+          config: apollo_stock_defconfig
           arch: arm64
           aosp-gcc: true
           aosp-clang: true
           android-version: 12
           aosp-clang-version: r383902
-          anykernel3: true
           extra-make-args: '["KCFLAGS=-Wno-error"]'
+          anykernel3: true
           release: true
