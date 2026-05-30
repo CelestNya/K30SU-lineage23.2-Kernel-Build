@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Checkout this repo (patches, workflow)
+        uses: actions/checkout@v4
+
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
