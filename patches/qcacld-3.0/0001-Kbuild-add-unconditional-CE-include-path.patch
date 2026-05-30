@@ -1,14 +1,16 @@
 diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
-index 65afd5749..d36e3c205 100644
+index 65afd5749..63257e913 100644
 --- a/drivers/staging/qcacld-3.0/Kbuild
 +++ b/drivers/staging/qcacld-3.0/Kbuild
-@@ -2072,6 +2072,9 @@ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
+@@ -2072,6 +2072,11 @@ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
  		$(WCFG_INC) \
  		$(HIF_INC) \
  		$(CMN_SYS_INC)
 +# HIF path propagation via CONFIG_HIF_PCI may fail in in-tree builds; include unconditionally
 +INCS += -I $(srctree)/$(WLAN_COMMON_INC)/$(HIF_CE_DIR)
 +INCS += -I $(srctree)/$(WLAN_COMMON_INC)/$(HIF_DISPATCHER_DIR)
++# WLAN_FEATURE_11W guards MMIE functions in cds_utils.h; unconditional to match compiled objects
++cppflags-y += -DWLAN_FEATURE_11W
  
  ifeq ($(CONFIG_LITHIUM), y)
  INCS += 	$(HAL_INC) \
