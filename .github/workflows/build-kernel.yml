@@ -47,6 +47,11 @@ jobs:
           EOF
           chmod +x kernel/scripts/min-tool-version.sh
 
+      - name: Patch kernel source for Clang compatibility
+        run: |
+          # filter.h uses compat_uptr_t but doesn't include linux/compat.h
+          sed -i '/^#include <linux\/sockptr.h>/a #include <linux/compat.h>' kernel/include/linux/filter.h
+
       - name: Generate merged defconfig
         run: |
           cd kernel
