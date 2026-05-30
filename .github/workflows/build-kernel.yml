@@ -6,6 +6,12 @@ on:
 permissions:
   contents: write
 
+env:
+  KERNEL_PATH: kernel
+  CLANG_PATH: clang
+  GCC64_PATH: gcc64
+  DEFCONFIG_NAME: apollo_stock_defconfig
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -16,12 +22,12 @@ jobs:
         with:
           repository: LineageOS/android_kernel_xiaomi_sm8250
           ref: lineage-23.2
-          path: kernel
+          path: ${{ env.KERNEL_PATH }}
           fetch-depth: 1
 
       - name: Add missing min-tool-version.sh
         run: |
-          cat > kernel/scripts/min-tool-version.sh << 'EOF'
+          cat > $KERNEL_PATH/scripts/min-tool-version.sh << 'EOF'
           #!/bin/sh
           # SPDX-License-Identifier: GPL-2.0-only
           set -e
@@ -45,34 +51,137 @@ jobs:
             ;;
           esac
           EOF
-          chmod +x kernel/scripts/min-tool-version.sh
+          chmod +x $KERNEL_PATH/scripts/min-tool-version.sh
 
-      - name: Patch kernel source for Clang compatibility
+      - name: Install build dependencies
         run: |
-          # filter.h uses compat_uptr_t but doesn't include linux/compat.h
-          sed -i '/^#include <linux\/sockptr.h>/a #include <linux/compat.h>' kernel/include/linux/filter.h
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev
 
       - name: Generate merged defconfig
         run: |
-          cd kernel
+          cd $KERNEL_PATH
           make ARCH=arm64 O=out vendor/kona-perf_defconfig
           scripts/kconfig/merge_config.sh -O out out/.config \
             arch/arm64/configs/vendor/debugfs.config \
             arch/arm64/configs/vendor/xiaomi/sm8250-common.config \
             arch/arm64/configs/vendor/xiaomi/apollo.config
-          cp out/.config arch/arm64/configs/apollo_stock_defconfig
+          # Verify and fix critical options
+          echo "=== Critical config check ==="
+          grep -E "(CONFIG_COMPAT|CONFIG_ARM64_4K_PAGES|CONFIG_LTO_CLANG|CONFIG_CFI_CLANG)" out/.config || true
+          if ! grep -q "CONFIG_COMPAT=y" out/.config; then
+            echo ">>> CONFIG_COMPAT missing, forcing it"
+            echo 'CONFIG_COMPAT=y' >> out/.config
+          fi
+          if ! grep -q "CONFIG_ARM64_4K_PAGES=y" out/.config; then
+            echo ">>> ARM64_4K_PAGES missing, forcing it (dependency of CONFIG_COMPAT)"
+            echo 'CONFIG_ARM64_4K_PAGES=y' >> out/.config
+          fi
+          # Resolve dependencies after our forced changes
+          make ARCH=arm64 O=out olddefconfig
+          echo "=== Config after olddefconfig ==="
+          grep -E "(CONFIG_COMPAT|CONFIG_ARM64_4K_PAGES|CONFIG_LTO_CLANG|CONFIG_CFI_CLANG)" out/.config || true
+          # Save the final config
+          cp out/.config arch/arm64/configs/$DEFCONFIG_NAME
           rm -rf out
 
-      - name: Build kernel
-        uses: dabao1955/kernel_build_action@main
+      - name: Cache toolchains
+        id: cache-toolchains
+        uses: actions/cache@v4
         with:
-          kernel-url: ./kernel/
-          config: apollo_stock_defconfig
-          arch: arm64
-          aosp-gcc: true
-          aosp-clang: true
-          android-version: 12
-          aosp-clang-version: r383902
-          extra-make-args: '["KCFLAGS=-Wno-error"]'
-          anykernel3: true
-          release: true
+          path: |
+            ${{ env.CLANG_PATH }}
+            ${{ env.GCC64_PATH }}
+          key: toolchains-apollo-${{ runner.os }}
+
+      - name: Download AOSP Clang r383902
+        if: steps.cache-toolchains.outputs.cache-hit != 'true'
+        run: |
+          echo "::group::Cloning AOSP Clang r383902"
+          git clone --depth=1 --branch android12-release \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+            $CLANG_PATH
+          echo "::endgroup::"
+
+      - name: Download AOSP GCC 4.9 (aarch64)
+        if: steps.cache-toolchains.outputs.cache-hit != 'true'
+        run: |
+          echo "::group::Cloning AOSP GCC 4.9"
+          git clone --depth=1 --branch android12-release \
+            https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+            $GCC64_PATH
+          echo "::endgroup::"
+
+      - name: Build kernel
+        run: |
+          export ROOT_DIR=$(pwd)
+          export PATH=$ROOT_DIR/$CLANG_PATH/clang-r383902/bin:$ROOT_DIR/$GCC64_PATH/bin:$PATH
+          export ARCH=arm64
+          export CC=clang
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export CROSS_COMPILE=aarch64-linux-android-
+          cd $KERNEL_PATH
+
+          # Generate .config from our merged defconfig
+          mkdir -p out
+          cp arch/arm64/configs/$DEFCONFIG_NAME out/.config
+          make O=out ARCH=$ARCH CC=$CC \
+            CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
+            olddefconfig
+
+          # Final CONFIG_COMPAT verification before full build
+          grep -q "CONFIG_COMPAT=y" out/.config || \
+            { echo "FATAL: CONFIG_COMPAT still not set after olddefconfig!"; exit 1; }
+
+          echo "=== Starting kernel build ==="
+          make -j$(nproc) O=out ARCH=$ARCH CC=$CC \
+            CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
+            KCFLAGS=-Wno-error
+
+      - name: Package AnyKernel3
+        run: |
+          echo "::group::Packaging AnyKernel3"
+          IMAGE=$KERNEL_PATH/out/arch/arm64/boot/Image
+          if [ ! -f "$IMAGE" ]; then
+            echo "FATAL: Image not found at $IMAGE"
+            exit 1
+          fi
+
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 anykernel
+          cp "$IMAGE" anykernel/
+          # Handle dtb — concatenated or individual
+          if [ -f "$KERNEL_PATH/out/arch/arm64/boot/dtb" ]; then
+            cp "$KERNEL_PATH/out/arch/arm64/boot/dtb" anykernel/dtb
+          elif [ -d "$KERNEL_PATH/out/arch/arm64/boot/dts" ]; then
+            find "$KERNEL_PATH/out/arch/arm64/boot/dts" -name '*.dtb' -exec cat {} + > anykernel/dtb
+          fi
+          # Handle dtbo if present
+          if [ -f "$KERNEL_PATH/out/arch/arm64/boot/dtbo.img" ]; then
+            cp "$KERNEL_PATH/out/arch/arm64/boot/dtbo.img" anykernel/
+          fi
+          cd anykernel
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
+          zip -r9 ../kernel-apollo-stock.zip * -x ".git/*" README.md
+          cd ..
+          echo "::endgroup::"
+
+      - name: Upload kernel as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-apollo-stock
+          path: kernel-apollo-stock.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: stock-kernel-${{ github.run_number }}
+          name: "Stock Kernel (apollo) build #${{ github.run_number }}"
+          body: |
+            Stock kernel for Redmi K30S Ultra (apollo/apolloin).
+
+            - **Source**: LineageOS/android_kernel_xiaomi_sm8250 @ lineage-23.2
+            - **Toolchain**: AOSP Clang r383902 (Clang 14) + GCC 4.9
+            - **Config**: vendor/kona-perf + debugfs + sm8250-common + apollo
+            - **Packaged**: AnyKernel3
+          files: kernel-apollo-stock.zip
+          fail_on_unmatched_files: false
