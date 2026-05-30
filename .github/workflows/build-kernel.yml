@@ -1,0 +1,21 @@
+name: Build Stock Kernel (apollo)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Build kernel
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/LineageOS/android_kernel_xiaomi_sm8250
+          kernel-branch: lineage-23.2
+          config: vendor/kona-perf_defconfig
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          anykernel3: true
+          release: true
