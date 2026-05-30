@@ -1,13 +1,14 @@
 diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
-index 65afd5749..3a645ea1b 100644
+index 65afd5749..d36e3c205 100644
 --- a/drivers/staging/qcacld-3.0/Kbuild
 +++ b/drivers/staging/qcacld-3.0/Kbuild
-@@ -2072,6 +2072,8 @@ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
+@@ -2072,6 +2072,9 @@ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
  		$(WCFG_INC) \
  		$(HIF_INC) \
  		$(CMN_SYS_INC)
-+# HIF_CE_DIR may not propagate via CONFIG_HIF_PCI in in-tree builds; include unconditionally
++# HIF path propagation via CONFIG_HIF_PCI may fail in in-tree builds; include unconditionally
 +INCS += -I $(srctree)/$(WLAN_COMMON_INC)/$(HIF_CE_DIR)
++INCS += -I $(srctree)/$(WLAN_COMMON_INC)/$(HIF_DISPATCHER_DIR)
  
  ifeq ($(CONFIG_LITHIUM), y)
  INCS += 	$(HAL_INC) \
