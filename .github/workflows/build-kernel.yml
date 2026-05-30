@@ -16,6 +16,5 @@ jobs:
           config: vendor/kona-perf_defconfig
           arch: arm64
           aosp-gcc: true
-          aosp-clang: true
           anykernel3: true
           release: true
