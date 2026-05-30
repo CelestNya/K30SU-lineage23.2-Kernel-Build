@@ -3,6 +3,9 @@ name: Build Stock Kernel (apollo)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -16,5 +19,8 @@ jobs:
           config: vendor/kona-perf_defconfig
           arch: arm64
           aosp-gcc: true
+          aosp-clang: true
+          android-version: 12
+          aosp-clang-version: r383902
           anykernel3: true
           release: true
