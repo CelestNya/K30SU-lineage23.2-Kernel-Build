@@ -19,6 +19,34 @@ jobs:
           path: kernel
           fetch-depth: 1
 
+      - name: Add missing min-tool-version.sh
+        run: |
+          cat > kernel/scripts/min-tool-version.sh << 'EOF'
+          #!/bin/sh
+          # SPDX-License-Identifier: GPL-2.0-only
+          set -e
+          if [ $# != 1 ]; then
+            echo "Usage: $0 toolname" >&2
+            exit 1
+          fi
+          case "$1" in
+          binutils)
+            echo 2.23.0
+            ;;
+          gcc)
+            echo 4.9.0
+            ;;
+          llvm)
+            echo 10.0.0
+            ;;
+          *)
+            echo "$1: unknown tool" >&2
+            exit 1
+            ;;
+          esac
+          EOF
+          chmod +x kernel/scripts/min-tool-version.sh
+
       - name: Generate merged defconfig
         run: |
           cd kernel
