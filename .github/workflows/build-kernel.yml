@@ -53,6 +53,11 @@ jobs:
           EOF
           chmod +x $KERNEL_PATH/scripts/min-tool-version.sh
 
+      - name: Apply Kbuild patches
+        run: |
+          patch -p1 -d $KERNEL_PATH < \
+            patches/qcacld-3.0/0001-Kbuild-add-unconditional-CE-include-path.patch
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
