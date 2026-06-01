@@ -111,7 +111,8 @@ jobs:
             CONFIG_MHI_BUS CONFIG_MHI_QCOM \
             CONFIG_COMPAT CONFIG_ARM64_4K_PAGES \
             CONFIG_LTO_CLANG CONFIG_CFI_CLANG CONFIG_SHADOW_CALL_STACK \
-            CONFIG_CC_WERROR; do
+            CONFIG_CC_WERROR \
+            CONFIG_CNSS2 CONFIG_CNSS; do
             grep -E "^$opt(=| is not set)" out/.config || echo "$opt: NOT FOUND"
           done
 

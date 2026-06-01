@@ -1,15 +1,17 @@
 diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
-index 65afd5749..b1f2ef4f8 100644
+index 65afd5749..0c6b5dce8 100644
 --- a/drivers/staging/qcacld-3.0/Kbuild
 +++ b/drivers/staging/qcacld-3.0/Kbuild
-@@ -56,6 +56,10 @@ $(warning "Overriding WLAN config with: $(shell cat $(WLAN_CFG_OVERRIDE_FILE))")
+@@ -56,6 +56,12 @@ $(warning "Overriding WLAN config with: $(shell cat $(WLAN_CFG_OVERRIDE_FILE))")
  endif
- 
+
  include $(WLAN_ROOT)/configs/$(patsubst "%",%,$(CONFIG_QCA_CLD_WLAN_PROFILE))_defconfig
-+# In in-tree builds the CNSS2/ROME_IF chain that sets CONFIG_HIF_PCI may
-+# not propagate; force it here so PCI-related include paths, objects, and
-+# preprocessor defines (HIF_PCI, CE_SVC_CMN_INIT, etc.) are active.
++# In in-tree builds the CNSS2/ROME_IF chain that sets CONFIG_HIF_PCI and
++# CONFIG_WLAN_FEATURE_11W may not propagate; force both here so PCI-related
++# include paths, objects, preprocessor defines (HIF_PCI, CE_SVC_CMN_INIT,
++# etc.) and 802.11w / PMF function declarations are active.
 +CONFIG_HIF_PCI := y
- 
++CONFIG_WLAN_FEATURE_11W := y
+
  ############ UAPI ############
  UAPI_DIR :=	uapi
