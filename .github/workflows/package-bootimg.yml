@@ -80,23 +80,13 @@ jobs:
             mkbootimg-tools
           echo "mkbootimg installed"
 
-      - name: Unpack stock boot.img and repack with new kernel
+      - name: Repack boot.img
         run: |
-          # Unpack stock boot.img — extracts kernel, ramdisk, dtb, boot.img.json
-          python3 mkbootimg-tools/unpack_bootimg.py \
-            --boot_img stock-boot.img --out boot_extract
-          echo "=== Unpacked files ==="
-          ls -la boot_extract/
-
-          # Replace kernel and dtb with our built ones
-          cp kernel-out/Image boot_extract/kernel
-          if [ -f kernel-out/dtb ]; then
-            cp kernel-out/dtb boot_extract/dtb
-          fi
-
-          # Repack preserving original header params
-          python3 mkbootimg-tools/mkbootimg.py \
-            --json boot_extract/boot.img.json -o boot.img
+          python3 scripts/repack_bootimg.py \
+            stock-boot.img \
+            kernel-out/Image \
+            kernel-out/dtb \
+            boot.img
           echo "New boot.img: $(ls -lh boot.img | awk '{print $5}')"
 
       - name: Upload boot.img as artifact
