@@ -73,14 +73,18 @@ jobs:
             "https://mirror.math.princeton.edu/pub/lineageos/full/apollon/20260530/boot.img"
           echo "stock boot.img: $(ls -lh stock-boot.img | awk '{print $5}')"
 
-      - name: Install mkbootimg
+      - name: Install mkbootimg (AOSP)
         run: |
-          pip install mkbootimg
+          git clone --depth=1 \
+            https://android.googlesource.com/platform/system/tools/mkbootimg \
+            mkbootimg-tools
+          echo "mkbootimg installed"
 
       - name: Unpack stock boot.img and repack with new kernel
         run: |
           # Unpack stock boot.img — extracts kernel, ramdisk, dtb, boot.img.json
-          unpack_bootimg --boot_img stock-boot.img --out boot_extract
+          python3 mkbootimg-tools/unpack_bootimg.py \
+            --boot_img stock-boot.img --out boot_extract
           echo "=== Unpacked files ==="
           ls -la boot_extract/
 
@@ -91,7 +95,8 @@ jobs:
           fi
 
           # Repack preserving original header params
-          mkbootimg --json boot_extract/boot.img.json -o boot.img
+          python3 mkbootimg-tools/mkbootimg.py \
+            --json boot_extract/boot.img.json -o boot.img
           echo "New boot.img: $(ls -lh boot.img | awk '{print $5}')"
 
       - name: Upload boot.img as artifact
