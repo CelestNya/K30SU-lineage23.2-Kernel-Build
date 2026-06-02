@@ -88,7 +88,6 @@ jobs:
             CONFIG_MHI_QCOM=y \
             CONFIG_COMPAT=y \
             CONFIG_ARM64_4K_PAGES=y \
-            CONFIG_DRM_MSM=y \
             CONFIG_QCOM_SMEM=y \
             CONFIG_CRYPTO_DEV_QCOM_ICE=y \
             CONFIG_QCOM_QMI_HELPERS=y \
