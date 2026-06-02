@@ -231,11 +231,33 @@ jobs:
           cd ..
           echo "::endgroup::"
 
-      - name: Upload kernel as artifact
+      - name: Package boot.img
+        run: |
+          git clone --depth=1 \
+            https://android.googlesource.com/platform/system/tools/mkbootimg \
+            mkbootimg-tools
+          curl -f -L -o stock-boot.img \
+            "https://mirror.math.princeton.edu/pub/lineageos/full/apollon/20260530/boot.img"
+
+          DTB=$KERNEL_PATH/out/arch/arm64/boot/dtb
+          [ -f "$DTB" ] || DTB="none"
+          python3 scripts/repack_bootimg.py \
+            stock-boot.img \
+            $KERNEL_PATH/out/arch/arm64/boot/Image \
+            "$DTB" \
+            boot.img
+
+      - name: Upload AnyKernel3 artifact
         uses: actions/upload-artifact@v4
         with:
           name: kernel-apollo-stock
           path: kernel-apollo-stock.zip
+
+      - name: Upload boot.img artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-apollo-stock-bootimg
+          path: boot.img
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -248,6 +270,8 @@ jobs:
             - **Source**: LineageOS/android_kernel_xiaomi_sm8250 @ lineage-23.2
             - **Toolchain**: AOSP Clang r383902 (Clang 14) + GCC 4.9
             - **Config**: vendor/kona-perf + debugfs + sm8250-common + apollo
-            - **Packaged**: AnyKernel3
-          files: kernel-apollo-stock.zip
+            - **Packaged**: AnyKernel3 + boot.img (`fastboot boot boot.img`)
+          files: |
+            kernel-apollo-stock.zip
+            boot.img
           fail_on_unmatched_files: false
