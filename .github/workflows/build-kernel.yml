@@ -136,12 +136,7 @@ jobs:
             CONFIG_MMC_SDHCI CONFIG_MMC_SDHCI_PLTFM CONFIG_DRM \
             CONFIG_PINCTRL_KONA CONFIG_PINCTRL_MSM \
             CONFIG_ICNSS CONFIG_ICNSS2 CONFIG_CNSS2; do
-            result="$(grep "^$opt\b" out/.config)"
-            if [ -n "$result" ]; then
-              echo "  $result"
-            else
-              echo "  $opt: NOT IN .CONFIG"
-            fi
+            grep -E "^$opt[= ]" out/.config || echo "  $opt: NOT IN .CONFIG"
           done
 
           # Save the final config
@@ -203,12 +198,7 @@ jobs:
             CONFIG_BLK_DEV_DM CONFIG_USB_DWC3 CONFIG_MMC \
             CONFIG_MMC_SDHCI CONFIG_MMC_SDHCI_PLTFM CONFIG_DRM \
             CONFIG_CNSS2 CONFIG_CNSS; do
-            result="$(grep "^$opt\b" out/.config)"
-            if [ -n "$result" ]; then
-              echo "  $result"
-            else
-              echo "  $opt: NOT IN .CONFIG"
-            fi
+            grep -E "^$opt[= ]" out/.config || echo "  $opt: NOT IN .CONFIG"
           done
 
           # Final config verification before full build
