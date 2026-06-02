@@ -4,52 +4,31 @@
 Usage:
   python3 repack_bootimg.py <stock_boot.img> <kernel> <dtb> <output>
 """
-import json, subprocess, sys
+import subprocess, sys, os, shlex
 
 stock_boot_img = sys.argv[1]
 kernel_img = sys.argv[2]
 dtb_img = sys.argv[3]
 output_img = sys.argv[4]
 
-# Unpack stock boot.img
-subprocess.check_call([
-    "python3", "mkbootimg-tools/unpack_bootimg.py",
-    "--boot_img", stock_boot_img,
-    "--out", "boot_extract"
-])
+# Unpack and get mkbootimg args in one call
+result = subprocess.run(
+    ["python3", "mkbootimg-tools/unpack_bootimg.py",
+     "--boot_img", stock_boot_img,
+     "--out", "boot_extract",
+     "--format", "mkbootimg"],
+    capture_output=True, text=True, check=True)
 
-# Replace kernel and dtb
+# Replace kernel and dtb in the extracted files
 subprocess.check_call(["cp", kernel_img, "boot_extract/kernel"])
-if dtb_img != "none":
+if os.path.isfile(dtb_img):
     subprocess.check_call(["cp", dtb_img, "boot_extract/dtb"])
 
-# Read header params from JSON
-cfg = json.load(open("boot_extract/boot.img.json"))
+# Parse mkbootimg args from output, then update kernel/ramdisk/dtb paths
+# They already point to boot_extract/ so we keep them as-is
+mkbootimg_args = shlex.split(result.stdout.strip())
+args = ["python3", "mkbootimg-tools/mkbootimg.py"] + mkbootimg_args + ["-o", output_img]
 
-# Build mkbootimg args
-args = ["python3", "mkbootimg-tools/mkbootimg.py"]
-for key, flag in [
-    ("header_version", "--header_version"),
-    ("base", "--base"),
-    ("kernel_offset", "--kernel_offset"),
-    ("ramdisk_offset", "--ramdisk_offset"),
-    ("tags_offset", "--tags_offset"),
-    ("page_size", "--pagesize"),
-    ("os_version", "--os_version"),
-    ("os_patch_level", "--os_patch_level"),
-    ("cmdline", "--cmdline"),
-]:
-    val = cfg.get(key)
-    if val is not None:
-        if key in ("base", "kernel_offset", "ramdisk_offset", "tags_offset"):
-            args += [flag, f"0x{int(val):08x}"]
-        else:
-            args += [flag, str(val)]
-
-args += ["--kernel", "boot_extract/kernel"]
-args += ["--ramdisk", "boot_extract/ramdisk"]
-args += ["--dtb", "boot_extract/dtb"]
-args += ["-o", output_img]
-
-print(" ".join(args))
+print("Running:", " ".join(args))
+sys.stdout.flush()
 subprocess.check_call(args)
