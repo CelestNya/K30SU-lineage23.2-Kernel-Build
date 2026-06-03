@@ -65,14 +65,8 @@ jobs:
         run: |
           cd $KERNEL_PATH
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" \
-            | bash -s v3.2.0
-          echo "SukiSU source injected"
-
-      - name: Fix 4.19 compatibility for MODULE_IMPORT_NS
-        run: |
-          cd $KERNEL_PATH
-          python3 -c "import re; f=open('KernelSU/kernel/ksu.c','r'); c=f.read(); f.close(); c=re.sub(r'MODULE_IMPORT_NS\(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver\);', r'#if LINUX_VERSION_CODE>=KERNEL_VERSION(5,0,0)\n\g<0>\n#endif', c); f=open('KernelSU/kernel/ksu.c','w'); f.write(c); f.close(); print('done')"
-          grep -q 'version.h' KernelSU/kernel/ksu.c || sed -i '1i\#include <linux/version.h>' KernelSU/kernel/ksu.c
+            | bash -s f4863b20cc8dc0f8cc67418980f022e43014b598
+          echo "SukiSU source injected (f4863b20, has 4.19 compat + SUSFS Kconfig)"
 
       - name: Apply SukiSU manual hook patches
         run: |
@@ -114,6 +108,11 @@ jobs:
             sed -i "/^$name=/d; /^# $name is not set/d" out/.config
             echo "$opt" >> out/.config
           done
+
+          # Explicitly disable SUSFS — f4863b20 Kconfig defaults it to y but
+          # the actual susfs source (susfs.c/h) is not included yet
+          sed -i "/^CONFIG_KSU_SUSFS=/d; /^# CONFIG_KSU_SUSFS is not set/d" out/.config
+          echo "# CONFIG_KSU_SUSFS is not set" >> out/.config
 
           # Custom LOCALVERSION: NyaKernel (SukiSU)
           SHORT_HASH=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
