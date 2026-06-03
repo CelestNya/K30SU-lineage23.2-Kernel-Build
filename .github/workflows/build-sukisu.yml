@@ -64,9 +64,18 @@ jobs:
       - name: Inject SukiSU-Ultra source
         run: |
           cd $KERNEL_PATH
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" \
-            | bash -s f4863b20cc8dc0f8cc67418980f022e43014b598
-          echo "SukiSU source injected (f4863b20, has 4.19 compat + SUSFS Kconfig)"
+          DRIVER_DIR="drivers"
+          git clone --depth=1 https://github.com/SukiSU-Ultra/SukiSU-Ultra KernelSU
+          cd KernelSU
+          git fetch --depth=1 origin f4863b20cc8dc0f8cc67418980f022e43014b598
+          git checkout f4863b20cc8dc0f8cc67418980f022e43014b598
+          cd ..
+          ln -sf "$(realpath --relative-to="$DRIVER_DIR" "$PWD/KernelSU/kernel")" "$DRIVER_DIR/kernelsu"
+          grep -q "kernelsu" "$DRIVER_DIR/Makefile" || \
+            printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "$DRIVER_DIR/Makefile"
+          grep -q "source \"drivers/kernelsu/Kconfig\"" "$DRIVER_DIR/Kconfig" || \
+            sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" "$DRIVER_DIR/Kconfig"
+          echo "SukiSU f4863b20 injected manually"
 
       - name: Install build dependencies
         run: |
