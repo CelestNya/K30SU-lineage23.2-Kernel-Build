@@ -83,13 +83,20 @@ jobs:
           echo ">>> Setting extra options..."
           for opt in \
             CONFIG_CNSS2=y \
-            CONFIG_CNSS2_QMI=y \
-            CONFIG_LOCALVERSION_AUTO=n \
-            CONFIG_LOCALVERSION="-CelestKernel"; do
+            CONFIG_CNSS2_QMI=y; do
             name="${opt%=*}"
             sed -i "/^$name=/d; /^# $name is not set/d" out/.config
             echo "$opt" >> out/.config
           done
+
+          # Custom LOCALVERSION: CelestNya-YYYYMMDD-g<commit>
+          SHORT_HASH=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +%Y%m%d)
+          sed -i "/^CONFIG_LOCALVERSION=/d; /^# CONFIG_LOCALVERSION is not set/d" out/.config
+          echo "CONFIG_LOCALVERSION=\"-CelestNya-${BUILD_DATE}-g${SHORT_HASH}\"" >> out/.config
+          # Disable auto versioning to avoid -dirty and duplicate -gXXXXXX
+          sed -i "/^CONFIG_LOCALVERSION_AUTO=/d; /^# CONFIG_LOCALVERSION_AUTO is not set/d" out/.config
+          echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
 
           # Remove CONFIG_CC_WERROR — cleaner than KCFLAGS=-Wno-error
           sed -i "/^CONFIG_CC_WERROR=/d; /^# CONFIG_CC_WERROR is not set/d" out/.config
