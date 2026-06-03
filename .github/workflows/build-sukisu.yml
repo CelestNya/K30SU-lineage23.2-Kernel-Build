@@ -68,19 +68,6 @@ jobs:
             | bash -s f4863b20cc8dc0f8cc67418980f022e43014b598
           echo "SukiSU source injected (f4863b20, has 4.19 compat + SUSFS Kconfig)"
 
-      - name: Apply SukiSU manual hook patches
-        run: |
-          for p in \
-            01-fs-exec.c.patch \
-            02-fs-open.c.patch \
-            03-fs-read_write.c.patch \
-            04-fs-stat.c.patch \
-            05-drivers-input-input.c.patch \
-            06-fs-devpts-inode.c.patch; do
-            echo "Applying $p..."
-            patch -p1 -d $KERNEL_PATH < patches/sukisu/$p || echo "WARNING: $p failed (may be pre-applied)"
-          done
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -99,11 +86,13 @@ jobs:
 
           # Force options NOT present in any config file but needed here
           echo ">>> Setting extra options..."
+          # KPROBES needed for sucompat kprobe hooks (execveat, faccessat, stat)
+          # CONFIG_KSU_MANUAL_HOOK is just a diagnostic flag in f4863b20
           for opt in \
             CONFIG_CNSS2=y \
             CONFIG_CNSS2_QMI=y \
-            CONFIG_KSU=y \
-            CONFIG_KSU_MANUAL_HOOK=y; do
+            CONFIG_KPROBES=y \
+            CONFIG_KSU=y; do
             name="${opt%=*}"
             sed -i "/^$name=/d; /^# $name is not set/d" out/.config
             echo "$opt" >> out/.config
@@ -130,10 +119,10 @@ jobs:
           # Resolve dependencies
           make ARCH=arm64 O=out olddefconfig
 
-          # === Diagnostic: dump KSU/SUSFS config values ===
+          # === Diagnostic: dump KSU/KPROBES config values ===
           echo "=== Config values after olddefconfig ==="
           for opt in \
-            CONFIG_KSU CONFIG_KSU_MANUAL_HOOK \
+            CONFIG_KSU CONFIG_KPROBES \
             CONFIG_CNSS2 CONFIG_CNSS2_QMI \
             CONFIG_LTO_CLANG CONFIG_CFI_CLANG CONFIG_SHADOW_CALL_STACK \
             CONFIG_ARCH_QCOM CONFIG_DRM_MSM CONFIG_QCOM_SMEM \
@@ -198,7 +187,7 @@ jobs:
           # Pre-build diagnostic: dump KSU config values
           echo "=== Pre-build .config values ==="
           for opt in \
-            CONFIG_KSU CONFIG_KSU_MANUAL_HOOK \
+            CONFIG_KSU CONFIG_KPROBES \
             CONFIG_ARCH_QCOM CONFIG_DRM_MSM CONFIG_QCOM_SMEM \
             CONFIG_CRYPTO_DEV_QCOM_ICE CONFIG_QCOM_QMI_HELPERS \
             CONFIG_QPNP_SMB5 CONFIG_USB_DWC3_MSM \
@@ -223,7 +212,7 @@ jobs:
             CONFIG_MSM_BT_POWER=y CONFIG_MMC_SDHCI_MSM=y \
             CONFIG_CNSS2=y CONFIG_CNSS2_QMI=y \
             CONFIG_ARCH_KONA=y \
-            CONFIG_KSU=y CONFIG_KSU_MANUAL_HOOK=y; do
+            CONFIG_KPROBES=y CONFIG_KSU=y; do
             name="${opt%=*}"
             if ! grep -q "$opt" out/.config; then
               echo "WARNING: $name is not set (value should be $opt) — may cause build failure"
