@@ -51,6 +51,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set artifact naming
+        run: |
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +%Y%m%d)
+          echo "KERNEL_BASE=NyaKernel-apollo-stock-${SHORT_HASH}-${BUILD_DATE}" >> "$GITHUB_ENV"
+
       - name: Download kernel artifact from build
         uses: actions/download-artifact@v4
         with:
@@ -86,27 +92,27 @@ jobs:
             stock-boot.img \
             kernel-out/Image \
             kernel-out/dtb \
-            boot.img
-          echo "New boot.img: $(ls -lh boot.img | awk '{print $5}')"
+            "${KERNEL_BASE}-boot.img"
+          echo "New boot.img: $(ls -lh ${KERNEL_BASE}-boot.img | awk '{print $5}')"
 
       - name: Upload boot.img as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-apollo-stock-bootimg
-          path: boot.img
+          name: ${{ env.KERNEL_BASE }}-bootimg
+          path: ${{ env.KERNEL_BASE }}-boot.img
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: bootimg-${{ github.run_number }}
-          name: "Stock Kernel boot.img #${{ github.run_number }}"
+          name: "NyaKernel boot.img #${{ github.run_number }}"
           body: |
-            Stock kernel boot.img for Redmi K30S Ultra (apollo/apolloin).
+            NyaKernel boot.img for Redmi K30S Ultra (apollo/apolloin).
 
             - **Source build**: #${{ inputs.run_number || env.run_id }}
             - **Source**: LineageOS/android_kernel_xiaomi_sm8250 @ lineage-23.2
             - **Toolchain**: AOSP Clang r383902 + GCC 4.9
             - **Stock boot.img**: apollon nightly 2026-05-30
             - **Usage**: `fastboot boot boot.img`
-          files: boot.img
+          files: ${{ env.KERNEL_BASE }}-boot.img
           fail_on_unmatched_files: false

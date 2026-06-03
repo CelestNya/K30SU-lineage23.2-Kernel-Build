@@ -213,6 +213,13 @@ jobs:
           make -j$(nproc) O=out ARCH=$ARCH CC=$CC \
             CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE
 
+      - name: Set artifact naming
+        run: |
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +%Y%m%d)
+          # TODO: change "stock" to feature tag (sukisu, sukisu_susfs, etc.) when integrated
+          echo "KERNEL_BASE=NyaKernel-apollo-stock-${SHORT_HASH}-${BUILD_DATE}" >> "$GITHUB_ENV"
+
       - name: Package AnyKernel3
         run: |
           echo "::group::Packaging AnyKernel3"
@@ -236,7 +243,7 @@ jobs:
           fi
           cd anykernel
           sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
-          zip -r9 ../kernel-apollo-stock.zip * -x ".git/*" README.md
+          zip -r9 "../${KERNEL_BASE}.zip" * -x ".git/*" README.md
           cd ..
           echo "::endgroup::"
 
@@ -254,19 +261,19 @@ jobs:
             stock-boot.img \
             $KERNEL_PATH/out/arch/arm64/boot/Image \
             "$DTB" \
-            boot.img
+            "${KERNEL_BASE}-boot.img"
 
       - name: Upload AnyKernel3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-apollo-stock
-          path: kernel-apollo-stock.zip
+          name: ${{ env.KERNEL_BASE }}
+          path: ${{ env.KERNEL_BASE }}.zip
 
       - name: Upload boot.img artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-apollo-stock-bootimg
-          path: boot.img
+          name: ${{ env.KERNEL_BASE }}-bootimg
+          path: ${{ env.KERNEL_BASE }}-boot.img
 
       - name: Generate release body
         id: release-info
@@ -281,6 +288,6 @@ jobs:
           name: "Stock Kernel (apollo) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
           body_path: release_body.md
           files: |
-            kernel-apollo-stock.zip
-            boot.img
+            ${{ env.KERNEL_BASE }}.zip
+            ${{ env.KERNEL_BASE }}-boot.img
           fail_on_unmatched_files: false
