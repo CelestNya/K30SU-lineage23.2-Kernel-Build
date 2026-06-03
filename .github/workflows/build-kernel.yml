@@ -243,7 +243,7 @@ jobs:
           fi
           cd anykernel
           sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
-          zip -r9 "../${KERNEL_BASE}.zip" * -x ".git/*" README.md
+          zip -r9 "../${KERNEL_BASE}-AnyKernel3.zip" * -x ".git/*" README.md
           cd ..
           echo "::endgroup::"
 
@@ -266,8 +266,8 @@ jobs:
       - name: Upload AnyKernel3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.KERNEL_BASE }}
-          path: ${{ env.KERNEL_BASE }}.zip
+          name: ${{ env.KERNEL_BASE }}-AnyKernel3
+          path: ${{ env.KERNEL_BASE }}-AnyKernel3.zip
 
       - name: Upload boot.img artifact
         uses: actions/upload-artifact@v4
@@ -288,6 +288,6 @@ jobs:
           name: "Stock Kernel (apollo) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
           body_path: release_body.md
           files: |
-            ${{ env.KERNEL_BASE }}.zip
+            ${{ env.KERNEL_BASE }}-AnyKernel3.zip
             ${{ env.KERNEL_BASE }}-boot.img
           fail_on_unmatched_files: false
