@@ -1,5 +1,5 @@
 diff --git a/fs/Makefile b/fs/Makefile
-index 766e45da7..4af6984a8 100644
+index 766e45da7..5f7c86d7d 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
 @@ -15,6 +15,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
@@ -11,10 +11,13 @@ index 766e45da7..4af6984a8 100644
  ifeq ($(CONFIG_BLOCK),y)
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
-@@ -135,3 +137,6 @@ obj-$(CONFIG_CEPH_FS)		+= ceph/
+@@ -135,3 +137,9 @@ obj-$(CONFIG_CEPH_FS)		+= ceph/
  obj-$(CONFIG_PSTORE)		+= pstore/
  obj-$(CONFIG_EFIVAR_FS)		+= efivarfs/
  obj-$(CONFIG_EROFS_FS)		+= erofs/
++
++obj-$(CONFIG_KSU_SUSFS) += susfs.o
++obj-$(CONFIG_KSU_SUSFS) += sus_su.o
 +
 +obj-$(CONFIG_KSU_SUSFS) += susfs.o
 +obj-$(CONFIG_KSU_SUSFS) += sus_su.o
@@ -319,7 +322,7 @@ index ea9e47217..c7a789ba9 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 4a69b9107..0d44cfc03 100644
+index 4a69b9107..ad1d13eba 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -27,10 +27,37 @@
@@ -475,7 +478,31 @@ index 4a69b9107..0d44cfc03 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -1091,6 +1190,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -946,7 +1045,11 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
+ 		return ERR_PTR(-EINVAL);
+ 	sb = fc->root->d_sb;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	mnt = alloc_vfsmnt(fc->source ?: "none", false, 0);
++#else
+ 	mnt = alloc_vfsmnt(fc->source ?: "none");
++#endif
+ 	if (!mnt)
+ 		return ERR_PTR(-ENOMEM);
+ 
+@@ -1039,7 +1142,11 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+ 	struct mount *mnt;
+ 	int err;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	mnt = alloc_vfsmnt(old->mnt_devname, false, 0);
++#else
+ 	mnt = alloc_vfsmnt(old->mnt_devname);
++#endif
+ 	if (!mnt)
+ 		return ERR_PTR(-ENOMEM);
+ 
+@@ -1091,6 +1198,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -491,7 +518,7 @@ index 4a69b9107..0d44cfc03 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1172,6 +1280,15 @@ static void mntput_no_expire(struct mount *mnt)
+@@ -1172,6 +1288,15 @@ static void mntput_no_expire(struct mount *mnt)
  		/*
  		 * Since we don't do lock_mount_hash() here,
  		 * ->mnt_ns can change under us.  However, if it's
@@ -507,7 +534,7 @@ index 4a69b9107..0d44cfc03 100644
  		 * non-NULL, then there's a reference that won't
  		 * be dropped until after an RCU delay done after
  		 * turning ->mnt_ns NULL.  So if we observe it
-@@ -2305,6 +2422,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2305,6 +2430,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -535,7 +562,7 @@ index 4a69b9107..0d44cfc03 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2978,6 +3116,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2978,6 +3124,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -551,7 +578,7 @@ index 4a69b9107..0d44cfc03 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3055,6 +3202,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3055,6 +3210,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -562,7 +589,7 @@ index 4a69b9107..0d44cfc03 100644
  
  	BUG_ON(!ns);
  
-@@ -3074,6 +3225,15 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3074,6 +3233,15 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -578,7 +605,7 @@ index 4a69b9107..0d44cfc03 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3110,6 +3270,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3110,6 +3278,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -608,7 +635,7 @@ index 4a69b9107..0d44cfc03 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3652,3 +3835,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3652,3 +3843,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
