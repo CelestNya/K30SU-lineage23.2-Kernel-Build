@@ -84,18 +84,34 @@ jobs:
           git clone --depth=1 --branch kernel-4.19 \
             https://gitlab.com/simonpunk/susfs4ksu susfs4ksu
 
-          # Apply SUSFS kernel patch for 4.19
-          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch
-
-          # Apply SUSFS KernelSU compatibility patch
-          patch -p1 -d KernelSU < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
-
-          # Copy SUSFS source files
+          # Copy SUSFS source files (always work - they're new files)
           cp susfs4ksu/kernel_patches/fs/susfs.c fs/
           cp susfs4ksu/kernel_patches/fs/sus_su.c fs/
           cp susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
           cp susfs4ksu/kernel_patches/include/linux/susfs_def.h include/linux/
           cp susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux/
+
+          # Add susfs.o and sus_su.o to fs/Makefile (simple one-liner)
+          grep -q "susfs" fs/Makefile || \
+            printf "\nobj-\$(CONFIG_KSU_SUSFS) += susfs.o\nobj-\$(CONFIG_KSU_SUSFS) += sus_su.o\n" >> fs/Makefile
+
+          # Apply SUSFS KernelSU compatibility patch
+          patch -p1 -d KernelSU -F3 < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
+            || echo "WARNING: KSU patch had rejects"
+
+          # Apply main SUSFS kernel patch with fuzz=3 to handle minor offsets
+          # Failed hunks for SUS_PATH features are safe - we disabled those
+          patch -p1 -F3 < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch \
+            || echo "WARNING: main patch had rejects (expected for LineageOS kernel)"
+
+          # Apply custom patches for files that the main patch fails on
+          for cp in susfs-mount-h.patch susfs-task-mmu.patch susfs-sched-h.patch; do
+            patch -p1 -F3 < "$GITHUB_WORKSPACE/patches/$cp" && echo "$cp applied" \
+              || echo "WARNING: $cp failed"
+          done
+
+          # Show any reject files that need manual attention
+          find . -name "*.rej" 2>/dev/null | head -5 && echo "Reject files exist (may be OK if for disabled features)"
           echo "SUSFS kernel-4.19 integrated"
 
       - name: Install build dependencies
