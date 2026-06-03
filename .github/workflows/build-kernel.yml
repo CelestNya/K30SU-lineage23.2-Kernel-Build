@@ -284,8 +284,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: stock-kernel-${{ github.run_number }}
-          name: "Stock Kernel (apollo) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
+          tag_name: NyaKernel-${{ github.run_number }}
+          name: "NyaKernel (apollo) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
           body_path: release_body.md
           files: |
             ${{ env.KERNEL_BASE }}-AnyKernel3.zip
