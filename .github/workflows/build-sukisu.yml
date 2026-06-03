@@ -99,16 +99,17 @@ jobs:
           patch -p1 -d KernelSU -F3 < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
             || echo "WARNING: KSU patch had rejects"
 
-          # Apply main SUSFS kernel patch with fuzz=3 to handle minor offsets
-          # Failed hunks for SUS_PATH features are safe - we disabled those
-          patch -p1 -F3 < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch \
-            || echo "WARNING: main patch had rejects (expected for LineageOS kernel)"
-
-          # Apply custom patches for files that the main patch fails on
-          for cp in susfs-mount-h.patch susfs-task-mmu.patch susfs-sched-h.patch; do
+          # Apply custom patches FIRST for files with ANDROID_KABI differences
+          # and namespace.c (already adapted for our LineageOS kernel)
+          for cp in susfs-mount-h.patch susfs-sched-h.patch susfs-task-mmu.patch susfs-namespace-c.patch; do
             patch -p1 -F3 < "$GITHUB_WORKSPACE/patches/$cp" && echo "$cp applied" \
               || echo "WARNING: $cp failed"
           done
+
+          # Apply main SUSFS kernel patch for remaining files
+          # Will auto-skip files already modified by custom patches above
+          patch -p1 -F3 < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch \
+            || echo "WARNING: main patch had some rejects (expected for custom files)"
 
           # Show any reject files that need manual attention
           find . -name "*.rej" 2>/dev/null | head -5 && echo "Reject files exist (may be OK if for disabled features)"
