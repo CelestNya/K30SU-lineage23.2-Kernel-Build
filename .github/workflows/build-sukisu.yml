@@ -68,6 +68,12 @@ jobs:
             | bash -s v3.2.0
           echo "SukiSU source injected"
 
+      - name: Fix 4.19 compatibility for MODULE_IMPORT_NS
+        run: |
+          cd $KERNEL_PATH
+          python3 -c "import re; f=open('KernelSU/kernel/ksu.c','r'); c=f.read(); f.close(); c=re.sub(r'MODULE_IMPORT_NS\(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver\);', r'#if LINUX_VERSION_CODE>=KERNEL_VERSION(5,0,0)\n&\n#endif', c); f=open('KernelSU/kernel/ksu.c','w'); f.write(c); f.close(); print('done')"
+          grep -q 'version.h' KernelSU/kernel/ksu.c || sed -i '1i\#include <linux/version.h>' KernelSU/kernel/ksu.c
+
       - name: Apply SukiSU manual hook patches
         run: |
           for p in \
