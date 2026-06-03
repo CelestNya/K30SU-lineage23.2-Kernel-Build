@@ -83,7 +83,9 @@ jobs:
           echo ">>> Setting extra options..."
           for opt in \
             CONFIG_CNSS2=y \
-            CONFIG_CNSS2_QMI=y; do
+            CONFIG_CNSS2_QMI=y \
+            CONFIG_LOCALVERSION_AUTO=n \
+            CONFIG_LOCALVERSION="-CelestKernel"; do
             name="${opt%=*}"
             sed -i "/^$name=/d; /^# $name is not set/d" out/.config
             echo "$opt" >> out/.config
