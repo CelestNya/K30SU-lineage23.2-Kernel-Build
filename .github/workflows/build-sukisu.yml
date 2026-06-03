@@ -285,12 +285,14 @@ jobs:
             echo "FATAL: Image not found at $IMAGE"
             exit 1
           fi
+          # patch_linux works in its own CWD, cd to the Image directory like reference
+          cd "$(dirname "$IMAGE")"
           wget -q https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
           chmod +x patch_linux
-          cp "$IMAGE" Image.orig
+          cp Image Image.orig
           ./patch_linux
           if [ -f oImage ]; then
-            mv oImage "$IMAGE"
+            mv oImage Image
             echo "KernelPatch injected successfully"
           else
             echo "WARNING: patch_linux did not produce oImage, using original"
