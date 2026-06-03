@@ -259,18 +259,18 @@ jobs:
           name: kernel-apollo-stock-bootimg
           path: boot.img
 
+      - name: Generate release body
+        id: release-info
+        run: |
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          python3 scripts/generate_release_body.py release_body.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: stock-kernel-${{ github.run_number }}
-          name: "Stock Kernel (apollo) build #${{ github.run_number }}"
-          body: |
-            Stock kernel for Redmi K30S Ultra (apollo/apolloin).
-
-            - **Source**: LineageOS/android_kernel_xiaomi_sm8250 @ lineage-23.2
-            - **Toolchain**: AOSP Clang r383902 (Clang 14) + GCC 4.9
-            - **Config**: vendor/kona-perf + debugfs + sm8250-common + apollo
-            - **Packaged**: AnyKernel3 + boot.img (`fastboot boot boot.img`)
+          name: "Stock Kernel (apollo) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
+          body_path: release_body.md
           files: |
             kernel-apollo-stock.zip
             boot.img
