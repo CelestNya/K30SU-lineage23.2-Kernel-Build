@@ -101,6 +101,11 @@ jobs:
           patch -p1 -F3 < $GITHUB_WORKSPACE/patches/susfs-all-in-one.patch \
             || echo "WARNING: some hunks rejected (netfilter/tools only, safe to ignore)"
 
+          # Make ksu_ksud_init() unconditional (f4863b20 lacks CONFIG_KSU_KPROBES_HOOK)
+          # Without this, manager cannot communicate with kernel
+          patch -p1 -F3 < $GITHUB_WORKSPACE/patches/susfs-ksud-fix.patch \
+            || echo "WARNING: ksud fix patch failed"
+
           rm -rf susfs4ksu
           echo "SUSFS kernel-4.19 integrated"
 

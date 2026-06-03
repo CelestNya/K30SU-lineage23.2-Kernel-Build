@@ -1,0 +1,28 @@
+diff --git a/KernelSU/kernel/ksu.c b/KernelSU/kernel/ksu.c
+index f4863b20..abcdef12 100644
+--- a/KernelSU/kernel/ksu.c
++++ b/KernelSU/kernel/ksu.c
+@@ -92,14 +92,9 @@ int __init ksu_kernelsu_init(void)
+
+ 	ksu_sucompat_init();
+
+-#ifdef CONFIG_KSU_KPROBES_HOOK
+ 	ksu_ksud_init();
+-#else
+-	pr_alert("KPROBES is disabled, KernelSU may not work, please check https://kernelsu.org/guide/how-to-integrate-for-non-gki.html");
+-#endif
+
+ #ifdef CONFIG_KSU_TRACEPOINT_HOOK
+     ksu_trace_register();
+ #endif
+
+@@ -119,9 +114,7 @@ void kernelsu_exit(void)
+
+ 	destroy_workqueue(ksu_workqueue);
+
+-#ifdef CONFIG_KSU_KPROBES_HOOK
+ 	ksu_ksud_exit();
+-#endif
+ 	ksu_sucompat_exit();
+
+ #ifdef CONFIG_KSU_TRACEPOINT_HOOK
