@@ -1,4 +1,4 @@
-name: Build NyaKernel (SukiSU)
+name: Build NyaKernel (SukiSU + SUSFS)
 
 on:
   workflow_dispatch:
@@ -65,6 +65,7 @@ jobs:
         run: |
           cd $KERNEL_PATH
           DRIVER_DIR="drivers"
+          # Clone SukiSU and checkout f4863b20
           git clone --depth=1 https://github.com/SukiSU-Ultra/SukiSU-Ultra KernelSU
           cd KernelSU
           git fetch --depth=1 origin f4863b20cc8dc0f8cc67418980f022e43014b598
@@ -75,7 +76,27 @@ jobs:
             printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "$DRIVER_DIR/Makefile"
           grep -q "source \"drivers/kernelsu/Kconfig\"" "$DRIVER_DIR/Kconfig" || \
             sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" "$DRIVER_DIR/Kconfig"
-          echo "SukiSU f4863b20 injected manually"
+          echo "SukiSU f4863b20 injected"
+
+      - name: Integrate SUSFS source (kernel-4.19)
+        run: |
+          cd $KERNEL_PATH
+          git clone --depth=1 --branch kernel-4.19 \
+            https://gitlab.com/simonpunk/susfs4ksu susfs4ksu
+
+          # Apply SUSFS kernel patch for 4.19
+          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch
+
+          # Apply SUSFS KernelSU compatibility patch
+          patch -p1 -d KernelSU < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
+
+          # Copy SUSFS source files
+          cp susfs4ksu/kernel_patches/fs/susfs.c fs/
+          cp susfs4ksu/kernel_patches/fs/sus_su.c fs/
+          cp susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
+          cp susfs4ksu/kernel_patches/include/linux/susfs_def.h include/linux/
+          cp susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux/
+          echo "SUSFS kernel-4.19 integrated"
 
       - name: Install build dependencies
         run: |
@@ -95,28 +116,45 @@ jobs:
 
           # Force options NOT present in any config file but needed here
           echo ">>> Setting extra options..."
-          # KPROBES needed for sucompat kprobe hooks (execveat, faccessat, stat)
-          # CONFIG_KSU_MANUAL_HOOK is just a diagnostic flag in f4863b20
           for opt in \
             CONFIG_CNSS2=y \
             CONFIG_CNSS2_QMI=y \
             CONFIG_KPROBES=y \
-            CONFIG_KSU=y; do
+            CONFIG_KSU=y \
+            CONFIG_KSU_MANUAL_HOOK=y \
+            CONFIG_KSU_SUSFS=y \
+            CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y \
+            CONFIG_KSU_SUSFS_SUS_MOUNT=y \
+            CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y \
+            CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y \
+            CONFIG_KSU_SUSFS_SUS_KSTAT=y \
+            CONFIG_KSU_SUSFS_TRY_UMOUNT=y \
+            CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y \
+            CONFIG_KSU_SUSFS_SPOOF_UNAME=y \
+            CONFIG_KSU_SUSFS_ENABLE_LOG=y \
+            CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y \
+            CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y \
+            CONFIG_KPM=y; do
             name="${opt%=*}"
             sed -i "/^$name=/d; /^# $name is not set/d" out/.config
             echo "$opt" >> out/.config
           done
+          # Explicitly disable problematic SUSFS options
+          for opt in \
+            CONFIG_KSU_SUSFS_SUS_PATH=n \
+            CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n \
+            CONFIG_KSU_SUSFS_OPEN_REDIRECT=n \
+            CONFIG_KSU_SUSFS_SUS_SU=n; do
+            name="${opt%=*}"
+            sed -i "/^$name=/d; /^# $name is not set/d" out/.config
+            echo "# $name is not set" >> out/.config
+          done
 
-          # Explicitly disable SUSFS — f4863b20 Kconfig defaults it to y but
-          # the actual susfs source (susfs.c/h) is not included yet
-          sed -i "/^CONFIG_KSU_SUSFS=/d; /^# CONFIG_KSU_SUSFS is not set/d" out/.config
-          echo "# CONFIG_KSU_SUSFS is not set" >> out/.config
-
-          # Custom LOCALVERSION: NyaKernel (SukiSU)
+          # Custom LOCALVERSION with feature field
           SHORT_HASH=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
           BUILD_DATE=$(date -u +%Y%m%d)
           sed -i "/^CONFIG_LOCALVERSION=/d; /^# CONFIG_LOCALVERSION is not set/d" out/.config
-          echo "CONFIG_LOCALVERSION=\"-NyaKernel-${BUILD_DATE}-g${SHORT_HASH}\"" >> out/.config
+          echo "CONFIG_LOCALVERSION=\"-NyaKernel-sukisu_susfs-${BUILD_DATE}-g${SHORT_HASH}\"" >> out/.config
           # Disable auto versioning
           sed -i "/^CONFIG_LOCALVERSION_AUTO=/d; /^# CONFIG_LOCALVERSION_AUTO is not set/d" out/.config
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
@@ -128,10 +166,10 @@ jobs:
           # Resolve dependencies
           make ARCH=arm64 O=out olddefconfig
 
-          # === Diagnostic: dump KSU/KPROBES config values ===
+          # === Diagnostic: dump KSU/SUSFS config values ===
           echo "=== Config values after olddefconfig ==="
           for opt in \
-            CONFIG_KSU CONFIG_KPROBES \
+            CONFIG_KSU CONFIG_KSU_MANUAL_HOOK CONFIG_KSU_SUSFS CONFIG_KPM \
             CONFIG_CNSS2 CONFIG_CNSS2_QMI \
             CONFIG_LTO_CLANG CONFIG_CFI_CLANG CONFIG_SHADOW_CALL_STACK \
             CONFIG_ARCH_QCOM CONFIG_DRM_MSM CONFIG_QCOM_SMEM \
@@ -221,7 +259,7 @@ jobs:
             CONFIG_MSM_BT_POWER=y CONFIG_MMC_SDHCI_MSM=y \
             CONFIG_CNSS2=y CONFIG_CNSS2_QMI=y \
             CONFIG_ARCH_KONA=y \
-            CONFIG_KPROBES=y CONFIG_KSU=y; do
+            CONFIG_KPROBES=y CONFIG_KSU=y CONFIG_KPM=y; do
             name="${opt%=*}"
             if ! grep -q "$opt" out/.config; then
               echo "WARNING: $name is not set (value should be $opt) — may cause build failure"
@@ -234,11 +272,29 @@ jobs:
           make -j$(nproc) O=out ARCH=$ARCH CC=$CC \
             CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE
 
+      - name: Inject KernelPatch (KPM)
+        run: |
+          IMAGE=$KERNEL_PATH/out/arch/arm64/boot/Image
+          if [ ! -f "$IMAGE" ]; then
+            echo "FATAL: Image not found at $IMAGE"
+            exit 1
+          fi
+          wget -q https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
+          chmod +x patch_linux
+          cp "$IMAGE" Image.orig
+          ./patch_linux
+          if [ -f oImage ]; then
+            mv oImage "$IMAGE"
+            echo "KernelPatch injected successfully"
+          else
+            echo "WARNING: patch_linux did not produce oImage, using original"
+          fi
+
       - name: Set artifact naming
         run: |
           SHORT_HASH=$(git rev-parse --short HEAD)
           BUILD_DATE=$(date -u +%Y%m%d)
-          echo "KERNEL_BASE=NyaKernel-apollo-sukisu-${SHORT_HASH}-${BUILD_DATE}" >> "$GITHUB_ENV"
+          echo "KERNEL_BASE=NyaKernel-apollo-sukisu_susfs-${SHORT_HASH}-${BUILD_DATE}" >> "$GITHUB_ENV"
 
       - name: Package AnyKernel3
         run: |
@@ -304,8 +360,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: NyaKernel-sukisu-${{ github.run_number }}
-          name: "NyaKernel (apollo, SukiSU) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
+          tag_name: NyaKernel-sukisu_susfs-${{ github.run_number }}
+          name: "NyaKernel (apollo, SukiSU+SUSFS) #${{ github.run_number }} (${{ steps.release-info.outputs.date }})"
           body_path: release_body.md
           files: |
             ${{ env.KERNEL_BASE }}-AnyKernel3.zip
