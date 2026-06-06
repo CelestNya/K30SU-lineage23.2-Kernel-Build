@@ -47,7 +47,7 @@ jobs:
           fetch-depth: 1
 
       - name: Add missing min-tool-version.sh
-        run: |\
+        run: |
           cat > $KERNEL_PATH/scripts/min-tool-version.sh << 'EOF'
           #!/bin/sh
           # SPDX-License-Identifier: GPL-2.0-only
